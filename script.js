@@ -3,7 +3,7 @@ console.log("🚀 SCRIPT LOADED SUCCESSFULLY");
 // =============================================
 // LOAD KEYS FROM CONFIG.JS
 // =============================================
-const GOOGLE_API_KEY = window.APP_CONFIG?.GOOGLE_API_KEY || "MISSING_GOOGLE_KEY";
+
 const BACKEND_URL = "https://reps-backend-api.onrender.com"; 
 
 // =============================================
