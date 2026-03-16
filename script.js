@@ -1,7 +1,7 @@
 console.log("SCRIPT LOADED SUCCESSFULLY");
 
 // Public CORS proxy - no setup required for users
-const GOVTRACK_BASE = "https://thingproxy.freeboard.io/fetch/https://www.govtrack.us/api/v2";
+const GOVTRACK_BASE = "https://cors.bridged.cc/https://www.govtrack.us/api/v2";
 // -----------------------------------------------------------------------------
 // FETCH WRAPPER
 // -----------------------------------------------------------------------------
