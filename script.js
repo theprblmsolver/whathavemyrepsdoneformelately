@@ -52,7 +52,7 @@ async function handleBillSearch() {
   renderList(out, "<p class='info'>Searching bill and votes…</p>");
 
   try {
-    const billUrl = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(raw)}&sort=-current_status_date&limit=1`;
+    const billUrl = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(raw)}&order_by=current_status_date&limit=1`;
     const billData = await fetchJson(billUrl);
 
     if (!billData.objects || billData.objects.length === 0) {
@@ -67,7 +67,7 @@ async function handleBillSearch() {
     const billDisplay = bill.display_number || raw;
     const status = bill.current_status_label || "Status unknown";
 
-    const votesUrl = `${GOVTRACK_BASE}/vote?bill=${billId}&sort=-created&limit=1`;
+    const votesUrl = `${GOVTRACK_BASE}/vote?bill=${billId}&order_by=created&limit=1`;
     const votesData = await fetchJson(votesUrl);
 
     if (!votesData.objects || votesData.objects.length === 0) {
@@ -285,7 +285,7 @@ async function handleIssueClick(issue) {
   renderList(out, `<p class='info'>Searching bills related to “${issue}”…</p>`);
 
   try {
-    const url = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(issue)}&sort=-current_status_date&limit=10`;
+    const url = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(issue)}&order_by=current_status_date&limit=10`;
     const data = await fetchJson(url);
 
     if (!data.objects || data.objects.length === 0) {
@@ -325,7 +325,7 @@ async function loadTrendingBills() {
   renderList(out, "<p class='info'>Loading trending bills…</p>");
 
   try {
-    const url = `${GOVTRACK_BASE}/bill?sort=-views&limit=10`;
+    const url = `${GOVTRACK_BASE}/bill?order_by=views&limit=10`;
     const data = await fetchJson(url);
 
     if (!data.objects || data.objects.length === 0) {
@@ -361,7 +361,7 @@ async function loadRecentVotes(chamber, containerId) {
   renderList(out, "<p class='info'>Loading recent votes…</p>");
 
   try {
-    const url = `${GOVTRACK_BASE}/vote?sort=-created&chamber=${chamber}&limit=10`;
+    const url = `${GOVTRACK_BASE}/vote?order_by=created&chamber=${chamber}&limit=10`;
     const data = await fetchJson(url);
 
     if (!data.objects || data.objects.length === 0) {
