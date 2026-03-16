@@ -1,6 +1,7 @@
 console.log("SCRIPT LOADED SUCCESSFULLY");
 
-const GOVTRACK_BASE = "https://cors-anywhere.herokuapp.com/https://www.govtrack.us/api/v2";
+// Public CORS proxy - no setup required for users
+const GOVTRACK_BASE = "https://api.allorigins.win/raw?url=https://www.govtrack.us/api/v2";
 
 // -----------------------------------------------------------------------------
 // FETCH WRAPPER
