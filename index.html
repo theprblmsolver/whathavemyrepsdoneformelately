@@ -1,85 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>What Have My Reps Done For Me Lately?</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find My Reps</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <h1>What Have My Reps Done For Me Lately?</h1>
-    <p>Search bills, check votes, and see what your representatives are doing.</p>
-  </header>
+    <div class="container">
+        <header>
+            <h1>Find My Reps</h1>
+            <p class="tagline">Enter your ZIP code to see your House member and Senators.</p>
+        </header>
 
-  <main>
-    <!-- Bill Search -->
-    <section class="card">
-      <h2>Search a Bill</h2>
-      <p class="hint">Try things like: <code>H.R. 7024</code>, <code>S. 2938</code>, <code>H.J.Res. 79</code></p>
-      <div class="form-row">
-        <input id="billInput" type="text" placeholder="Enter bill number (e.g., H.R. 7024)" />
-        <button id="billSearchBtn">Search</button>
-      </div>
-      <div id="billResult" class="results"></div>
-    </section>
+        <main>
+            <!-- ZIP Lookup Section -->
+            <section class="zip-section">
+                <div class="search-box">
+                    <input type="text" id="zipInput" placeholder="Enter ZIP code (e.g., 89101)" pattern="[0-9]{5}" maxlength="5">
+                    <button id="zipSearchBtn">Find My Reps</button>
+                </div>
+                <div id="zipResult" class="results"></div>
+            </section>
 
-    <!-- ZIP Lookup -->
-    <section class="card">
-      <h2>Find My Reps</h2>
-      <p class="hint">Enter your ZIP code to see your House member and Senators.</p>
-      <div class="form-row">
-        <input id="zipInput" type="text" placeholder="Enter ZIP code (e.g., 89101)" />
-        <button id="zipSearchBtn">Find My Reps</button>
-      </div>
-      <div id="zipResult" class="results"></div>
-    </section>
+            <!-- Bill Search Section -->
+            <section class="bill-search-section">
+                <h2>Search for a Bill</h2>
+                <p class="small">Try things like: H.R. 7024, S. 2938, H.J. Res. 79</p>
+                <div class="search-box">
+                    <input type="text" id="billInput" placeholder="Enter bill number...">
+                    <button id="billSearchBtn">Search Bill</button>
+                </div>
+                <div id="billResult" class="results"></div>
+            </section>
 
-    <!-- Issue Categories -->
-    <section class="card">
-      <h2>Browse by Issue</h2>
-      <p class="hint">Jump into bills related to a topic.</p>
-      <div class="issue-grid">
-        <button class="issue-btn" data-issue="border security">Border Security</button>
-        <button class="issue-btn" data-issue="inflation">Inflation</button>
-        <button class="issue-btn" data-issue="veterans">Veterans</button>
-        <button class="issue-btn" data-issue="health care">Healthcare</button>
-        <button class="issue-btn" data-issue="crime">Crime</button>
-        <button class="issue-btn" data-issue="education">Education</button>
-        <button class="issue-btn" data-issue="energy">Energy</button>
-        <button class="issue-btn" data-issue="housing">Housing</button>
-        <button class="issue-btn" data-issue="small business">Small Business</button>
-      </div>
-      <div id="issueResult" class="results"></div>
-    </section>
+            <!-- Browse by Issue Section -->
+            <section class="issues-section">
+                <h2>Browse by Issue</h2>
+                <p class="small">Jump into bills related to a topic.</p>
+                <div class="issue-buttons">
+                    <button class="issue-btn" data-issue="border security">Border Security</button>
+                    <button class="issue-btn" data-issue="inflation">Inflation</button>
+                    <button class="issue-btn" data-issue="veterans">Veterans</button>
+                    <button class="issue-btn" data-issue="healthcare">Healthcare</button>
+                    <button class="issue-btn" data-issue="crime">Crime</button>
+                    <button class="issue-btn" data-issue="education">Education</button>
+                </div>
+                <div id="issueResult" class="results"></div>
+            </section>
 
-    <!-- Trending Bills -->
-    <section class="card">
-      <h2>Trending Bills</h2>
-      <p class="hint">Most viewed bills recently on GovTrack.</p>
-      <div id="trendingBills" class="results"></div>
-    </section>
+            <!-- Trending Bills Section -->
+            <section class="trending-section">
+                <h2>Trending Bills</h2>
+                <div id="trendingBills" class="results"></div>
+            </section>
 
-    <!-- Recent Votes -->
-    <section class="card">
-      <h2>Recent Votes</h2>
-      <div class="two-column">
-        <div>
-          <h3>House</h3>
-          <div id="recentHouseVotes" class="results"></div>
-        </div>
-        <div>
-          <h3>Senate</h3>
-          <div id="recentSenateVotes" class="results"></div>
-        </div>
-      </div>
-    </section>
-  </main>
+            <!-- Recent Votes Section -->
+            <section class="votes-section">
+                <h2>Recent Votes</h2>
+                <div class="vote-columns">
+                    <div class="vote-column">
+                        <h3>House</h3>
+                        <div id="recentHouseVotes" class="results"></div>
+                    </div>
+                    <div class="vote-column">
+                        <h3>Senate</h3>
+                        <div id="recentSenateVotes" class="results"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
 
-  <footer>
-    <p>Data from GovTrack. This tool is informational only.</p>
-  </footer>
+        <footer>
+            <p class="small">Data sources: Google Civic API, Apify Congress.gov Scraper</p>
+        </footer>
+    </div>
 
-  <script src="script.js"></script>
+    <!-- IMPORTANT: config.js MUST load before script.js -->
+    <script src="config.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
