@@ -4,7 +4,7 @@ console.log("🚀 SCRIPT LOADED SUCCESSFULLY");
 // LOAD KEYS FROM CONFIG.JS
 // =============================================
 const GOOGLE_API_KEY = window.APP_CONFIG?.GOOGLE_API_KEY || "MISSING_GOOGLE_KEY";
-const APIFY_TOKEN = window.APP_CONFIG?.APIFY_TOKEN || "MISSING_APIFY_TOKEN";
+const BACKEND_URL = "https://reps-backend-api.onrender.com"; 
 
 // =============================================
 // API CONFIGURATION
@@ -118,31 +118,29 @@ async function handleZipSearch() {
 // =============================================
 async function runApifyActor(inputData) {
     try {
-        // Start the actor - using proxy!
-        const startUrl = `${APIFY_BASE}/v2/acts/${APIFY_ACTOR}/runs?token=${APIFY_TOKEN}`;
-        console.log("Starting Apify actor...");
-        const startRes = await fetchJson(startUrl, true);
-        
-        const run = startRes;
+        // Start the actor via your backend
+        const startUrl = `${BACKEND_URL}/api/apify?endpoint=acts/fortuitous_pirate/congress-gov-scraper/runs`;
+        const startRes = await fetch(startUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(inputData)
+        });
+        const run = await startRes.json();
         const runId = run.data.id;
         const datasetId = run.data.defaultDatasetId;
-        
+
         // Wait a few seconds for the actor to run
-        renderList(document.getElementById("trendingBills"), "<p class='info'>Waiting for results (may take 5-10 seconds)…</p>");
-        await new Promise(r => setTimeout(r, 5000));
-        
-        // Get results - using proxy!
-        const dataUrl = `${APIFY_BASE}/v2/datasets/${datasetId}/items?token=${APIFY_TOKEN}`;
-        console.log("Fetching results from:", dataUrl);
-        const data = await fetchJson(dataUrl, true);
-        
-        return data;
+        await new Promise(r => setTimeout(r, 4000));
+
+        // Get results
+        const dataUrl = `${BACKEND_URL}/api/apify?endpoint=datasets/${datasetId}/items`;
+        const dataRes = await fetch(dataUrl);
+        return await dataRes.json();
     } catch (err) {
         console.error("[runApifyActor] Error:", err);
         throw err;
     }
 }
-
 // =============================================
 // TRENDING BILLS
 // =============================================
