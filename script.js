@@ -328,13 +328,14 @@ async function loadTrendingBills() {
 }
 
 // -----------------------------------------------------------------------------
-// RECENT VOTES
+// RECENT VOTES - FIXED: using /vote instead of /title
 // -----------------------------------------------------------------------------
 async function loadRecentVotes(chamber, containerId) {
   const out = document.getElementById(containerId);
   renderList(out, "<p class='info'>Loading recent votes…</p>");
 
   try {
+    // IMPORTANT: Using "/vote" not "/title"
     const url = `${GOVTRACK_BASE}/vote?sort=-created&chamber=${chamber}&limit=10`;
     const data = await fetchJson(url);
 
