@@ -12,8 +12,8 @@ const APIFY_TOKEN = window.APP_CONFIG?.APIFY_TOKEN || "MISSING_APIFY_TOKEN";
 const GOOGLE_CIVIC_BASE = "https://www.googleapis.com/civicinfo/v2";
 const APIFY_ACTOR = "fortuitous_pirate/congress-gov-scraper";
 
-// 🔥 FIX: Add a CORS proxy for Apify calls
-const CORS_PROXY = "https://corsproxy.io/?";
+// 🔥 NEW PROXY: cors.bridged.cc (more reliable)
+const CORS_PROXY = "https://cors.bridged.cc/";
 const APIFY_BASE = `https://api.apify.com`;
 
 // =============================================
@@ -24,7 +24,15 @@ async function fetchJson(url, useProxy = false) {
     console.log("[fetchJson] GET", finalUrl);
     try {
         const res = await fetch(finalUrl);
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        console.log("[fetchJson] Status:", res.status, res.statusText);
+        if (!res.ok) {
+            // Try to get error details
+            let errorText = "";
+            try {
+                errorText = await res.text();
+            } catch (e) {}
+            throw new Error(`HTTP ${res.status}: ${res.statusText} - ${errorText.substring(0, 100)}`);
+        }
         return await res.json();
     } catch (err) {
         console.error("[fetchJson] Error:", err);
@@ -33,7 +41,7 @@ async function fetchJson(url, useProxy = false) {
 }
 
 // =============================================
-// HELPER FUNCTIONS
+// HELPER FUNCTIONS (unchanged)
 // =============================================
 function partyBadge(party) {
     if (!party) return { label: "?", cls: "badge-unknown" };
@@ -74,13 +82,13 @@ async function handleZipSearch() {
         const url = `${GOOGLE_CIVIC_BASE}/representatives?address=${encodeURIComponent(zip)}&key=${GOOGLE_API_KEY}`;
         console.log("Fetching reps from:", url);
         
-        const data = await fetchJson(url, false); // No proxy for Google
+        const data = await fetchJson(url, false);
         
         const offices = data.offices || [];
         const officials = data.officials || [];
         let html = "<p class='small'>Your federal representatives:</p>";
         
-        offices.forEach((office, officeIndex) => {
+        offices.forEach((office) => {
             if (office.name.includes("U.S. Senate") || office.name.includes("U.S. House")) {
                 office.officialIndices.forEach(index => {
                     const rep = officials[index];
@@ -106,13 +114,14 @@ async function handleZipSearch() {
 }
 
 // =============================================
-// APIFY ACTOR RUNNER - Now with CORS proxy!
+// APIFY ACTOR RUNNER - Now with new proxy
 // =============================================
 async function runApifyActor(inputData) {
     try {
         // Start the actor - using proxy!
         const startUrl = `${APIFY_BASE}/v2/acts/${APIFY_ACTOR}/runs?token=${APIFY_TOKEN}`;
-        const startRes = await fetchJson(startUrl, true); // Use proxy!
+        console.log("Starting Apify actor...");
+        const startRes = await fetchJson(startUrl, true);
         
         const run = startRes;
         const runId = run.data.id;
@@ -124,7 +133,8 @@ async function runApifyActor(inputData) {
         
         // Get results - using proxy!
         const dataUrl = `${APIFY_BASE}/v2/datasets/${datasetId}/items?token=${APIFY_TOKEN}`;
-        const data = await fetchJson(dataUrl, true); // Use proxy!
+        console.log("Fetching results from:", dataUrl);
+        const data = await fetchJson(dataUrl, true);
         
         return data;
     } catch (err) {
@@ -143,7 +153,7 @@ async function loadTrendingBills() {
     try {
         const bills = await runApifyActor({ 
             "endpoint": "bill", 
-            "maxItems": 5, // Reduced for faster loading
+            "maxItems": 5,
             "format": "json"
         });
         
@@ -171,7 +181,7 @@ async function loadTrendingBills() {
         renderList(out, html);
     } catch (err) {
         console.error("[loadTrendingBills]", err);
-        renderList(out, "<p class='error'>Unable to load bills. The CORS proxy may be rate-limited. Try again in a few minutes.</p>");
+        renderList(out, "<p class='error'>Unable to load bills. Error: " + err.message + "</p>");
     }
 }
 
@@ -221,7 +231,7 @@ async function loadRecentVotes(chamber, containerId) {
         renderList(out, html);
     } catch (err) {
         console.error(`[loadRecentVotes ${chamber}]`, err);
-        renderList(out, `<p class='error'>Unable to load votes.</p>`);
+        renderList(out, `<p class='error'>Unable to load votes: ${err.message}</p>`);
     }
 }
 
@@ -262,7 +272,7 @@ async function handleIssueClick(issue) {
         renderList(out, html);
     } catch (err) {
         console.error("[handleIssueClick]", err);
-        renderList(out, `<p class='error'>Error searching bills.</p>`);
+        renderList(out, `<p class='error'>Error searching bills: ${err.message}</p>`);
     }
 }
 
