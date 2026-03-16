@@ -1,22 +1,48 @@
 console.log("SCRIPT LOADED SUCCESSFULLY");
 
-// Public CORS proxy - no setup required for users
-const GOVTRACK_BASE = "https://cors.bridged.cc/https://www.govtrack.us/api/v2";
+const GOVTRACK_BASE = "https://www.govtrack.us/api/v2";
+
 // -----------------------------------------------------------------------------
-// FETCH WRAPPER
+// JSONP WRAPPER (replaces fetchJson)
+// -----------------------------------------------------------------------------
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+    window[callbackName] = function(data) {
+      delete window[callbackName];
+      document.body.removeChild(script);
+      resolve(data);
+    };
+
+    const script = document.createElement('script');
+    // Add callback parameter to URL
+    const separator = url.includes('?') ? '&' : '?';
+    script.src = url + separator + 'callback=' + callbackName;
+    script.onerror = function(err) {
+      delete window[callbackName];
+      document.body.removeChild(script);
+      reject(new Error('JSONP request failed'));
+    };
+    document.body.appendChild(script);
+  });
+}
+
+// -----------------------------------------------------------------------------
+// FETCH WRAPPER - Modified to use JSONP
 // -----------------------------------------------------------------------------
 async function fetchJson(url) {
   console.log("[fetchJson] GET", url);
-  let res;
   try {
-    res = await fetch(url);
+    // Remove the proxy part if present
+    const cleanUrl = url.replace(/https?:\/\/[^\/]+\/?\?url=/, '');
+    const finalUrl = cleanUrl.includes('govtrack.us') ? cleanUrl : url;
+    console.log("[fetchJson] Final URL:", finalUrl);
+    const data = await jsonp(finalUrl);
+    return data;
   } catch (err) {
-    console.error("[fetchJson] Network error:", err);
+    console.error("[fetchJson] Error:", err);
     throw new Error("Network error");
   }
-  console.log("[fetchJson] Status:", res.status);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 // -----------------------------------------------------------------------------
@@ -327,14 +353,13 @@ async function loadTrendingBills() {
 }
 
 // -----------------------------------------------------------------------------
-// RECENT VOTES - FIXED: using /vote instead of /title
+// RECENT VOTES
 // -----------------------------------------------------------------------------
 async function loadRecentVotes(chamber, containerId) {
   const out = document.getElementById(containerId);
   renderList(out, "<p class='info'>Loading recent votes…</p>");
 
   try {
-    // IMPORTANT: Using "/vote" not "/title"
     const url = `${GOVTRACK_BASE}/vote?sort=-created&chamber=${chamber}&limit=10`;
     const data = await fetchJson(url);
 
