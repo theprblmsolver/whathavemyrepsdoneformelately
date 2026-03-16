@@ -1,48 +1,23 @@
 console.log("SCRIPT LOADED SUCCESSFULLY");
 
+// DIRECT API URL - no proxy needed! CORS is enabled [citation:1]
 const GOVTRACK_BASE = "https://www.govtrack.us/api/v2";
 
 // -----------------------------------------------------------------------------
-// JSONP WRAPPER (replaces fetchJson)
-// -----------------------------------------------------------------------------
-function jsonp(url) {
-  return new Promise((resolve, reject) => {
-    const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-    window[callbackName] = function(data) {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      resolve(data);
-    };
-
-    const script = document.createElement('script');
-    // Add callback parameter to URL
-    const separator = url.includes('?') ? '&' : '?';
-    script.src = url + separator + 'callback=' + callbackName;
-    script.onerror = function(err) {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      reject(new Error('JSONP request failed'));
-    };
-    document.body.appendChild(script);
-  });
-}
-
-// -----------------------------------------------------------------------------
-// FETCH WRAPPER - Modified to use JSONP
+// FETCH WRAPPER
 // -----------------------------------------------------------------------------
 async function fetchJson(url) {
   console.log("[fetchJson] GET", url);
+  let res;
   try {
-    // Remove the proxy part if present
-    const cleanUrl = url.replace(/https?:\/\/[^\/]+\/?\?url=/, '');
-    const finalUrl = cleanUrl.includes('govtrack.us') ? cleanUrl : url;
-    console.log("[fetchJson] Final URL:", finalUrl);
-    const data = await jsonp(finalUrl);
-    return data;
+    res = await fetch(url);
   } catch (err) {
-    console.error("[fetchJson] Error:", err);
-    throw new Error("Network error");
+    console.error("[fetchJson] Network error:", err);
+    throw new Error("Network error - check console for details");
   }
+  console.log("[fetchJson] Status:", res.status);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
 // -----------------------------------------------------------------------------
@@ -66,6 +41,154 @@ function voteBadge(vote) {
 function renderList(container, html) {
   if (!container) return;
   container.innerHTML = html || "<p class='info'>No results.</p>";
+}
+
+// -----------------------------------------------------------------------------
+// ZIP LOOKUP - Test this first!
+// -----------------------------------------------------------------------------
+async function handleZipSearch() {
+  const input = document.getElementById("zipInput");
+  const out   = document.getElementById("zipResult");
+  const btn   = document.getElementById("zipSearchBtn");
+  const zip   = (input?.value || "").trim();
+
+  if (!zip) {
+    renderList(out, "<p class='error'>Enter a ZIP code.</p>");
+    return;
+  }
+
+  btn.disabled = true;
+  renderList(out, "<p class='info'>Looking up your representatives…</p>");
+
+  try {
+    // Direct API call - should work with CORS enabled
+    const url = `${GOVTRACK_BASE}/role?current=true&zip=${encodeURIComponent(zip)}&limit=20`;
+    console.log("Fetching:", url);
+    const data = await fetchJson(url);
+
+    if (!data.objects?.length) {
+      renderList(out, "<p class='error'>No representatives found.</p>");
+      return;
+    }
+
+    const reps = data.objects;
+    const house = reps.filter(r => r.role_type === "representative");
+    const senate = reps.filter(r => r.role_type === "senator");
+
+    const parts = ["<p class='small'>Your current federal representatives:</p>"];
+
+    if (house.length) {
+      parts.push("<div class='group-title'>House</div>");
+      house.forEach(r => {
+        const pb = partyBadge(r.party);
+        parts.push(`
+          <p class="rep-line">
+            <span class="rep-name">${r.person.name} (District ${r.district || "At-Large"})</span>
+            <span class="badge ${pb.cls}">${pb.label}</span>
+            <span class="small">${r.state}</span>
+          </p>
+        `);
+      });
+    }
+
+    if (senate.length) {
+      parts.push("<div class='group-title'>Senate</div>");
+      senate.forEach(r => {
+        const pb = partyBadge(r.party);
+        parts.push(`
+          <p class="rep-line">
+            <span class="rep-name">${r.person.name}</span>
+            <span class="badge ${pb.cls}">${pb.label}</span>
+            <span class="small">${r.state}</span>
+          </p>
+        `);
+      });
+    }
+
+    renderList(out, parts.join(""));
+
+  } catch (err) {
+    console.error("[handleZipSearch]", err);
+    renderList(out, `<p class='error'>${err.message}</p>`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// TRENDING BILLS
+// -----------------------------------------------------------------------------
+async function loadTrendingBills() {
+  const out = document.getElementById("trendingBills");
+  renderList(out, "<p class='info'>Loading trending bills…</p>");
+
+  try {
+    const url = `${GOVTRACK_BASE}/bill?sort=-current_status_date&limit=10`;
+    const data = await fetchJson(url);
+
+    if (!data.objects?.length) {
+      renderList(out, "<p class='info'>No trending bills.</p>");
+      return;
+    }
+
+    const parts = [];
+    data.objects.forEach(b => {
+      const num = b.display_number || b.number || "Bill";
+      const title = b.title || "No title available";
+      const status = b.current_status_label || "Status unknown";
+      parts.push(`
+        <p class="rep-line">
+          <span class="rep-name">${num}</span>
+          <span class="small"> — ${title}</span><br/>
+          <span class="small">${status}</span>
+        </p>
+      `);
+    });
+
+    renderList(out, parts.join(""));
+
+  } catch (err) {
+    console.error("[loadTrendingBills]", err);
+    renderList(out, `<p class='error'>${err.message}</p>`);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// RECENT VOTES
+// -----------------------------------------------------------------------------
+async function loadRecentVotes(chamber, containerId) {
+  const out = document.getElementById(containerId);
+  renderList(out, "<p class='info'>Loading recent votes…</p>");
+
+  try {
+    const url = `${GOVTRACK_BASE}/vote?sort=-created&chamber=${chamber}&limit=10`;
+    const data = await fetchJson(url);
+
+    if (!data.objects?.length) {
+      renderList(out, "<p class='info'>No recent votes.</p>");
+      return;
+    }
+
+    const parts = [];
+    data.objects.forEach(v => {
+      const label = v.question || "Vote";
+      const when = v.created || "";
+      const billNum = v.related_bill?.display_number || "";
+      parts.push(`
+        <p class="rep-line">
+          <span class="rep-name">${billNum || v.chamber.toUpperCase()}</span>
+          <span class="small"> — ${label}</span><br/>
+          <span class="small">${when}</span>
+        </p>
+      `);
+    });
+
+    renderList(out, parts.join(""));
+
+  } catch (err) {
+    console.error("[loadRecentVotes]", err);
+    renderList(out, `<p class='error'>${err.message}</p>`);
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -207,76 +330,6 @@ function buildVoteBreakdownHtml(voteDetail) {
 }
 
 // -----------------------------------------------------------------------------
-// ZIP LOOKUP
-// -----------------------------------------------------------------------------
-async function handleZipSearch() {
-  const input = document.getElementById("zipInput");
-  const out   = document.getElementById("zipResult");
-  const btn   = document.getElementById("zipSearchBtn");
-  const zip   = (input?.value || "").trim();
-
-  if (!zip) {
-    renderList(out, "<p class='error'>Enter a ZIP code.</p>");
-    return;
-  }
-
-  btn.disabled = true;
-  renderList(out, "<p class='info'>Looking up your representatives…</p>");
-
-  try {
-    const url = `${GOVTRACK_BASE}/role?current=true&zip=${encodeURIComponent(zip)}&limit=20`;
-    const data = await fetchJson(url);
-
-    if (!data.objects?.length) {
-      renderList(out, "<p class='error'>No representatives found.</p>");
-      return;
-    }
-
-    const reps = data.objects;
-    const house = reps.filter(r => r.role_type === "representative");
-    const senate = reps.filter(r => r.role_type === "senator");
-
-    const parts = ["<p class='small'>Your current federal representatives:</p>"];
-
-    if (house.length) {
-      parts.push("<div class='group-title'>House</div>");
-      house.forEach(r => {
-        const pb = partyBadge(r.party);
-        parts.push(`
-          <p class="rep-line">
-            <span class="rep-name">${r.person.name} (District ${r.district || "At-Large"})</span>
-            <span class="badge ${pb.cls}">${pb.label}</span>
-            <span class="small">${r.state}</span>
-          </p>
-        `);
-      });
-    }
-
-    if (senate.length) {
-      parts.push("<div class='group-title'>Senate</div>");
-      senate.forEach(r => {
-        const pb = partyBadge(r.party);
-        parts.push(`
-          <p class="rep-line">
-            <span class="rep-name">${r.person.name}</span>
-            <span class="badge ${pb.cls}">${pb.label}</span>
-            <span class="small">${r.state}</span>
-          </p>
-        `);
-      });
-    }
-
-    renderList(out, parts.join(""));
-
-  } catch (err) {
-    console.error("[handleZipSearch]", err);
-    renderList(out, `<p class='error'>${err.message}</p>`);
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-// -----------------------------------------------------------------------------
 // ISSUE BROWSE
 // -----------------------------------------------------------------------------
 async function handleIssueClick(issue) {
@@ -310,82 +363,6 @@ async function handleIssueClick(issue) {
 
   } catch (err) {
     console.error("[handleIssueClick]", err);
-    renderList(out, `<p class='error'>${err.message}</p>`);
-  }
-}
-
-// -----------------------------------------------------------------------------
-// TRENDING BILLS
-// -----------------------------------------------------------------------------
-async function loadTrendingBills() {
-  const out = document.getElementById("trendingBills");
-  renderList(out, "<p class='info'>Loading trending bills…</p>");
-
-  try {
-    const url = `${GOVTRACK_BASE}/bill?sort=-current_status_date&limit=10`;
-    const data = await fetchJson(url);
-
-    if (!data.objects?.length) {
-      renderList(out, "<p class='info'>No trending bills.</p>");
-      return;
-    }
-
-    const parts = [];
-    data.objects.forEach(b => {
-      const num = b.display_number || b.number || "Bill";
-      const title = b.title || "No title available";
-      const status = b.current_status_label || "Status unknown";
-      parts.push(`
-        <p class="rep-line">
-          <span class="rep-name">${num}</span>
-          <span class="small"> — ${title}</span><br/>
-          <span class="small">${status}</span>
-        </p>
-      `);
-    });
-
-    renderList(out, parts.join(""));
-
-  } catch (err) {
-    console.error("[loadTrendingBills]", err);
-    renderList(out, `<p class='error'>${err.message}</p>`);
-  }
-}
-
-// -----------------------------------------------------------------------------
-// RECENT VOTES
-// -----------------------------------------------------------------------------
-async function loadRecentVotes(chamber, containerId) {
-  const out = document.getElementById(containerId);
-  renderList(out, "<p class='info'>Loading recent votes…</p>");
-
-  try {
-    const url = `${GOVTRACK_BASE}/vote?sort=-created&chamber=${chamber}&limit=10`;
-    const data = await fetchJson(url);
-
-    if (!data.objects?.length) {
-      renderList(out, "<p class='info'>No recent votes.</p>");
-      return;
-    }
-
-    const parts = [];
-    data.objects.forEach(v => {
-      const label = v.question || "Vote";
-      const when = v.created || "";
-      const billNum = v.related_bill?.display_number || "";
-      parts.push(`
-        <p class="rep-line">
-          <span class="rep-name">${billNum || v.chamber.toUpperCase()}</span>
-          <span class="small"> — ${label}</span><br/>
-          <span class="small">${when}</span>
-        </p>
-      `);
-    });
-
-    renderList(out, parts.join(""));
-
-  } catch (err) {
-    console.error("[loadRecentVotes]", err);
     renderList(out, `<p class='error'>${err.message}</p>`);
   }
 }
