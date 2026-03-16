@@ -1,3 +1,6 @@
+console.log("🔍 Testing config:", window.APP_CONFIG);
+console.log("🔑 Google Key exists:", !!window.APP_CONFIG?.GOOGLE_API_KEY);
+console.log("🔑 Apify Token exists:", !!window.APP_CONFIG?.APIFY_TOKEN);
 console.log("🚀 SCRIPT LOADED SUCCESSFULLY");
 
 // =============================================
