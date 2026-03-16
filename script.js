@@ -1,6 +1,6 @@
 console.log("SCRIPT LOADED SUCCESSFULLY");
 
-const GOVTRACK_BASE = "https://www.govtrack.us/api/v2";
+const GOVTRACK_BASE = "https://cors-anywhere.herokuapp.com/https://www.govtrack.us/api/v2";
 
 // -----------------------------------------------------------------------------
 // FETCH WRAPPER
