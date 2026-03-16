@@ -15,7 +15,7 @@ async function fetchJson(url) {
 
 // Map party code to label + badge class
 function partyBadge(party) {
-  if (party === "Democrat") return { label: "D", cls: "badge-dem" };
+  if (party === "Democrat" || party === "Democratic") return { label: "D", cls: "badge-dem" };
   if (party === "Republican") return { label: "R", cls: "badge-rep" };
   return { label: "I", cls: "badge-ind" };
 }
@@ -52,7 +52,8 @@ async function handleBillSearch() {
   renderList(out, "<p class='info'>Searching bill and votes…</p>");
 
   try {
-    const billUrl = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(raw)}&order_by=current_status_date&limit=1`;
+    // FIX: use -current_status_date for valid ordering
+    const billUrl = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(raw)}&order_by=-current_status_date&limit=1`;
     const billData = await fetchJson(billUrl);
 
     if (!billData.objects || billData.objects.length === 0) {
@@ -67,7 +68,8 @@ async function handleBillSearch() {
     const billDisplay = bill.display_number || raw;
     const status = bill.current_status_label || "Status unknown";
 
-    const votesUrl = `${GOVTRACK_BASE}/vote?bill=${billId}&order_by=created&limit=1`;
+    // FIX: use -created for valid ordering
+    const votesUrl = `${GOVTRACK_BASE}/vote?bill=${billId}&order_by=-created&limit=1`;
     const votesData = await fetchJson(votesUrl);
 
     if (!votesData.objects || votesData.objects.length === 0) {
@@ -282,10 +284,11 @@ async function handleZipSearch() {
 
 async function handleIssueClick(issue) {
   const out = document.getElementById("issueResult");
-  renderList(out, `<p class='info'>Searching bills related to “${issue}”…</p>`);
+  renderList(out, `<p class='info'>Searching bills related to "${issue}"…</p>`);
 
   try {
-    const url = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(issue)}&order_by=current_status_date&limit=10`;
+    // FIX: use -current_status_date for valid ordering
+    const url = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(issue)}&order_by=-current_status_date&limit=10`;
     const data = await fetchJson(url);
 
     if (!data.objects || data.objects.length === 0) {
@@ -325,7 +328,8 @@ async function loadTrendingBills() {
   renderList(out, "<p class='info'>Loading trending bills…</p>");
 
   try {
-    const url = `${GOVTRACK_BASE}/bill?order_by=views&limit=10`;
+    // FIX: -current_status_date is a valid order_by field; "views" is not supported
+    const url = `${GOVTRACK_BASE}/bill?order_by=-current_status_date&limit=10`;
     const data = await fetchJson(url);
 
     if (!data.objects || data.objects.length === 0) {
@@ -361,7 +365,8 @@ async function loadRecentVotes(chamber, containerId) {
   renderList(out, "<p class='info'>Loading recent votes…</p>");
 
   try {
-    const url = `${GOVTRACK_BASE}/vote?order_by=created&chamber=${chamber}&limit=10`;
+    // FIX: GovTrack uses "h" for house and "s" for senate, and -created for descending order
+    const url = `${GOVTRACK_BASE}/vote?order_by=-created&chamber=${encodeURIComponent(chamber)}&limit=10`;
     const data = await fetchJson(url);
 
     if (!data.objects || data.objects.length === 0) {
@@ -401,6 +406,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   loadTrendingBills();
+  // FIX: GovTrack chamber values are "h" (house) and "s" (senate) — not full words
+  loadRecentVotes("h", "recentHouseVotes");
+  loadRecentVotes("s", "recentSenateVotes");
+});
+();
   loadRecentVotes("house", "recentHouseVotes");
   loadRecentVotes("senate", "recentSenateVotes");
 });
