@@ -1,9 +1,6 @@
 console.log("🚀 SCRIPT LOADED SUCCESSFULLY");
 
-// =============================================
-// LOAD CONFIG (Google API key only – Apify token is on backend)
-// =============================================
-const GOOGLE_API_KEY = window.APP_CONFIG?.GOOGLE_API_KEY || "MISSING_GOOGLE_KEY";
+
 
 // =============================================
 // BACKEND URL (your Render service)
