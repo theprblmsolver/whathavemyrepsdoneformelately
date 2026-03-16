@@ -1,226 +1,411 @@
-:root {
-  --bg: #0f172a;
-  --card-bg: #111827;
-  --accent: #38bdf8;
-  --accent-soft: rgba(56, 189, 248, 0.15);
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --border: #1f2937;
-  --danger: #f97373;
-  --success: #4ade80;
-  --warning: #facc15;
-  --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+const GOVTRACK_BASE = "https://www.govtrack.us/api/v2";
+
+// Utility: basic fetch wrapper
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.json();
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+// Map party code to label + badge class
+function partyBadge(party) {
+  if (party === "Democrat") return { label: "D", cls: "badge-dem" };
+  if (party === "Republican") return { label: "R", cls: "badge-rep" };
+  return { label: "I", cls: "badge-ind" };
 }
 
-body {
-  margin: 0;
-  font-family: var(--font);
-  background: radial-gradient(circle at top, #1f2937 0, #020617 55%);
-  color: var(--text);
-  min-height: 100vh;
+// Map vote to badge
+function voteBadge(vote) {
+  if (!vote) return { label: "Unknown", cls: "badge-nv" };
+  const v = vote.toLowerCase();
+  if (v.includes("yea") || v.includes("yes")) return { label: "Yea", cls: "badge-yea" };
+  if (v.includes("nay") || v.includes("no")) return { label: "Nay", cls: "badge-nay" };
+  if (v.includes("not voting")) return { label: "Not Voting", cls: "badge-nv" };
+  return { label: vote, cls: "badge-nv" };
 }
 
-header {
-  text-align: center;
-  padding: 2.5rem 1rem 1.5rem;
+// Render helpers
+function renderList(container, html) {
+  container.innerHTML = html || "<p class='info'>No results.</p>";
 }
 
-header h1 {
-  margin: 0 0 0.5rem;
-  font-size: clamp(1.8rem, 3vw, 2.4rem);
-}
+// ---------------- BILL SEARCH ----------------
 
-header p {
-  margin: 0;
-  color: var(--muted);
-}
+async function handleBillSearch() {
+  const input = document.getElementById("billInput");
+  const out = document.getElementById("billResult");
+  const btn = document.getElementById("billSearchBtn");
+  const raw = (input.value || "").trim();
 
-main {
-  max-width: 1100px;
-  margin: 0 auto 3rem;
-  padding: 0 1rem 2rem;
-  display: grid;
-  gap: 1.5rem;
-}
+  if (!raw) {
+    renderList(out, "<p class='error'>Please enter a bill number.</p>");
+    return;
+  }
 
-.card {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.9));
-  border-radius: 0.9rem;
-  border: 1px solid var(--border);
-  padding: 1.25rem 1.4rem 1.4rem;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
-}
+  btn.disabled = true;
+  renderList(out, "<p class='info'>Searching bill and votes…</p>");
 
-.card h2 {
-  margin: 0 0 0.4rem;
-  font-size: 1.2rem;
-}
+  try {
+    // Use GovTrack bill search by query
+    const billUrl = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(raw)}&order_by=-current_status_date&limit=1`;
+    const billData = await fetchJson(billUrl);
 
-.card h3 {
-  margin: 0.4rem 0 0.3rem;
-  font-size: 1rem;
-}
+    if (!billData.objects || billData.objects.length === 0) {
+      renderList(out, "<p class='error'>No bill found matching that number or text.</p>");
+      btn.disabled = false;
+      return;
+    }
 
-.hint {
-  margin: 0 0 0.8rem;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
+    const bill = billData.objects[0];
+    const billId = bill.id;
+    const billTitle = bill.title || bill.display_number || raw;
+    const billDisplay = bill.display_number || raw;
+    const status = bill.current_status_label || "Status unknown";
 
-.form-row {
-  display: flex;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
+    // Fetch votes for this bill
+    const votesUrl = `${GOVTRACK_BASE}/vote?bill=${billId}&order_by=-created&limit=1`;
+    const votesData = await fetchJson(votesUrl);
 
-input[type="text"] {
-  flex: 1 1 220px;
-  padding: 0.55rem 0.7rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--border);
-  background: #020617;
-  color: var(--text);
-  font-size: 0.95rem;
-}
+    if (!votesData.objects || votesData.objects.length === 0) {
+      renderList(
+        out,
+        `<p><strong>${billDisplay}</strong> — ${billTitle}</p>
+         <p class="small">${status}</p>
+         <p class="info">No roll call votes found for this bill yet.</p>`
+      );
+      btn.disabled = false;
+      return;
+    }
 
-input[type="text"]::placeholder {
-  color: #6b7280;
-}
+    const vote = votesData.objects[0];
+    const voteId = vote.id;
+    const chamber = vote.chamber || "unknown chamber";
+    const voteLabel = vote.question || "Vote";
 
-button {
-  padding: 0.55rem 0.9rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--accent);
-  background: linear-gradient(135deg, #0ea5e9, #22c55e);
-  color: #0b1120;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 0.95rem;
-  white-space: nowrap;
-}
+    // Fetch full vote detail
+    const voteDetailUrl = `${GOVTRACK_BASE}/vote/${voteId}`;
+    const voteDetail = await fetchJson(voteDetailUrl);
 
-button:hover {
-  filter: brightness(1.05);
-}
+    const breakdownHtml = buildVoteBreakdownHtml(voteDetail);
 
-button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.results {
-  margin-top: 0.9rem;
-  font-size: 0.9rem;
-}
-
-.results p {
-  margin: 0.2rem 0;
-}
-
-.issue-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 0.5rem;
-}
-
-.issue-btn {
-  background: var(--accent-soft);
-  border-color: rgba(56, 189, 248, 0.6);
-  color: var(--text);
-  font-size: 0.85rem;
-}
-
-.issue-btn:hover {
-  background: rgba(56, 189, 248, 0.25);
-}
-
-.two-column {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 1rem;
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.1rem 0.4rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  margin-left: 0.3rem;
-}
-
-.badge-dem {
-  background: rgba(59, 130, 246, 0.2);
-  color: #93c5fd;
-}
-
-.badge-rep {
-  background: rgba(248, 113, 113, 0.2);
-  color: #fecaca;
-}
-
-.badge-ind {
-  background: rgba(244, 244, 245, 0.15);
-  color: #e5e7eb;
-}
-
-.badge-yea {
-  background: rgba(74, 222, 128, 0.18);
-  color: #bbf7d0;
-}
-
-.badge-nay {
-  background: rgba(248, 113, 113, 0.18);
-  color: #fecaca;
-}
-
-.badge-nv {
-  background: rgba(250, 204, 21, 0.18);
-  color: #fef3c7;
-}
-
-.group-title {
-  margin-top: 0.7rem;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.rep-line {
-  margin: 0.15rem 0;
-}
-
-.rep-name {
-  font-weight: 500;
-}
-
-.small {
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.error {
-  color: var(--danger);
-}
-
-.info {
-  color: var(--muted);
-}
-
-footer {
-  text-align: center;
-  padding: 1rem 1rem 2rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-/* Mobile tweaks */
-@media (max-width: 600px) {
-  header {
-    padding-top: 2rem;
+    renderList(
+      out,
+      `
+      <p><strong>${billDisplay}</strong> — ${billTitle}</p>
+      <p class="small">${status}</p>
+      <p class="small">Latest vote: ${voteLabel} (${chamber})</p>
+      ${breakdownHtml}
+      `
+    );
+  } catch (err) {
+    console.error(err);
+    renderList(
+      out,
+      "<p class='error'>Something went wrong while fetching bill data. Try again in a moment.</p>"
+    );
+  } finally {
+    btn.disabled = false;
   }
 }
+
+// Build party + vote breakdown HTML
+function buildVoteBreakdownHtml(voteDetail) {
+  if (!voteDetail || !voteDetail.votes) {
+    return "<p class='info'>No detailed vote data available.</p>";
+  }
+
+  // voteDetail.votes is usually an object keyed by option (e.g., "Yea", "Nay")
+  const votes = voteDetail.votes;
+  const members = [];
+
+  Object.keys(votes).forEach((option) => {
+    const arr = votes[option] || [];
+    arr.forEach((m) => {
+      members.push({
+        name: m.display_name || m.person?.name || "Unknown",
+        party: m.party || m.person?.party || "Unknown",
+        state: m.state || m.person?.state || "",
+        role: m.role_type_label || "",
+        option,
+      });
+    });
+  });
+
+  if (members.length === 0) {
+    return "<p class='info'>No member votes recorded.</p>";
+  }
+
+  // Group by party + vote
+  const groups = {
+    Democrat: { Yea: [], Nay: [], NV: [] },
+    Republican: { Yea: [], Nay: [], NV: [] },
+    Other: { Yea: [], Nay: [], NV: [] },
+  };
+
+  for (const m of members) {
+    const partyKey =
+      m.party === "Democrat" || m.party === "Democratic"
+        ? "Democrat"
+        : m.party === "Republican"
+        ? "Republican"
+        : "Other";
+
+    const opt = m.option.toLowerCase();
+    const bucket = opt.includes("yea") || opt.includes("yes")
+      ? "Yea"
+      : opt.includes("nay") || opt.includes("no")
+      ? "Nay"
+      : "NV";
+
+    groups[partyKey][bucket].push(m);
+  }
+
+  function renderGroup(title, data) {
+    const total = data.Yea.length + data.Nay.length + data.NV.length;
+    if (total === 0) return "";
+
+    const parts = [];
+    parts.push(`<div class="group-title">${title} (${total})</div>`);
+
+    if (data.Yea.length) {
+      parts.push(`<p class="small"><strong>Yea</strong> (${data.Yea.length})</p>`);
+      data.Yea.forEach((m) => {
+        parts.push(renderMemberLine(m));
+      });
+    }
+    if (data.Nay.length) {
+      parts.push(`<p class="small"><strong>Nay</strong> (${data.Nay.length})</p>`);
+      data.Nay.forEach((m) => {
+        parts.push(renderMemberLine(m));
+      });
+    }
+    if (data.NV.length) {
+      parts.push(`<p class="small"><strong>Not Voting</strong> (${data.NV.length})</p>`);
+      data.NV.forEach((m) => {
+        parts.push(renderMemberLine(m));
+      });
+    }
+
+    return parts.join("");
+  }
+
+  function renderMemberLine(m) {
+    const pb = partyBadge(m.party);
+    const vb = voteBadge(m.option);
+    const state = m.state ? ` (${m.state})` : "";
+    return `
+      <p class="rep-line">
+        <span class="rep-name">${m.name}${state}</span>
+        <span class="badge ${pb.cls}">${pb.label}</span>
+        <span class="badge ${vb.cls}">${vb.label}</span>
+      </p>
+    `;
+  }
+
+  return `
+    <div class="group-title">Full Vote Breakdown</div>
+    ${renderGroup("Democrats", groups.Democrat)}
+    ${renderGroup("Republicans", groups.Republican)}
+    ${renderGroup("Independents / Others", groups.Other)}
+  `;
+}
+
+// ---------------- ZIP LOOKUP ----------------
+
+async function handleZipSearch() {
+  const input = document.getElementById("zipInput");
+  const out = document.getElementById("zipResult");
+  const btn = document.getElementById("zipSearchBtn");
+  const zip = (input.value || "").trim();
+
+  if (!zip) {
+    renderList(out, "<p class='error'>Please enter a ZIP code.</p>");
+    return;
+  }
+
+  btn.disabled = true;
+  renderList(out, "<p class='info'>Looking up your current representatives…</p>");
+
+  try {
+    const url = `${GOVTRACK_BASE}/role?current=true&zip=${encodeURIComponent(zip)}&limit=20`;
+    const data = await fetchJson(url);
+
+    if (!data.objects || data.objects.length === 0) {
+      renderList(out, "<p class='error'>No representatives found for that ZIP code.</p>");
+      btn.disabled = false;
+      return;
+    }
+
+    const reps = data.objects;
+    const house = reps.filter((r) => r.role_type === "representative");
+    const senate = reps.filter((r) => r.role_type === "senator");
+
+    const parts = [];
+    parts.push("<p class='small'>These are your current federal representatives.</p>");
+
+    if (house.length) {
+      parts.push("<div class='group-title'>House</div>");
+      house.forEach((r) => {
+        const pb = partyBadge(r.party);
+        parts.push(`
+          <p class="rep-line">
+            <span class="rep-name">${r.person.name} (District ${r.district || "At-Large"})</span>
+            <span class="badge ${pb.cls}">${pb.label}</span>
+            <span class="small">${r.state}</span>
+          </p>
+        `);
+      });
+    }
+
+    if (senate.length) {
+      parts.push("<div class='group-title'>Senate</div>");
+      senate.forEach((r) => {
+        const pb = partyBadge(r.party);
+        parts.push(`
+          <p class="rep-line">
+            <span class="rep-name">${r.person.name}</span>
+            <span class="badge ${pb.cls}">${pb.label}</span>
+            <span class="small">${r.state}</span>
+          </p>
+        `);
+      });
+    }
+
+    renderList(out, parts.join(""));
+  } catch (err) {
+    console.error(err);
+    renderList(
+      out,
+      "<p class='error'>Something went wrong while looking up your reps. Try again in a moment.</p>"
+    );
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---------------- ISSUE BROWSE ----------------
+
+async function handleIssueClick(issue) {
+  const out = document.getElementById("issueResult");
+  renderList(out, `<p class='info'>Searching bills related to “${issue}”…</p>`);
+
+  try {
+    const url = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(issue)}&order_by=-current_status_date&limit=10`;
+    const data = await fetchJson(url);
+
+    if (!data.objects || data.objects.length === 0) {
+      renderList(out, "<p class='error'>No bills found for that issue.</p>");
+      return;
+    }
+
+    const parts = [];
+    parts.push("<p class='small'>Top recent bills related to this issue:</p>");
+    data.objects.forEach((b) => {
+      const num = b.display_number || b.number || "Bill";
+      const title = b.title || "No title available";
+      const status = b.current_status_label || "Status unknown";
+      parts.push(`
+        <p class="rep-line">
+          <span class="rep-name">${num}</span>
+          <span class="small"> — ${title}</span><br/>
+          <span class="small">${status}</span>
+        </p>
+      `);
+    });
+
+    renderList(out, parts.join(""));
+  } catch (err) {
+    console.error(err);
+    renderList(
+      out,
+      "<p class='error'>Something went wrong while fetching issue bills. Try again later.</p>"
+    );
+  }
+}
+
+// ---------------- TRENDING BILLS ----------------
+
+async function loadTrendingBills() {
+  const out = document.getElementById("trendingBills");
+  renderList(out, "<p class='info'>Loading trending bills…</p>");
+
+  try {
+    const url = `${GOVTRACK_BASE}/bill?order_by=-views&limit=10`;
+    const data = await fetchJson(url);
+
+    if (!data.objects || data.objects.length === 0) {
+      renderList(out, "<p class='info'>No trending bills available.</p>");
+      return;
+    }
+
+    const parts = [];
+    data.objects.forEach((b) => {
+      const num = b.display_number || b.number || "Bill";
+      const title = b.title || "No title available";
+      const status = b.current_status_label || "Status unknown";
+      parts.push(`
+        <p class="rep-line">
+          <span class="rep-name">${num}</span>
+          <span class="small"> — ${title}</span><br/>
+          <span class="small">${status}</span>
+        </p>
+      `);
+    });
+
+    renderList(out, parts.join(""));
+  } catch (err) {
+    console.error(err);
+    renderList(out, "<p class='error'>Could not load trending bills right now.</p>");
+  }
+}
+
+// ---------------- RECENT VOTES ----------------
+
+async function loadRecentVotes(chamber, containerId) {
+  const out = document.getElementById(containerId);
+  renderList(out, "<p class='info'>Loading recent votes…</p>");
+
+  try {
+    const url = `${GOVTRACK_BASE}/vote?order_by=-created&chamber=${chamber}&limit=10`;
+    const data = await fetchJson(url);
+
+    if (!data.objects || data.objects.length === 0) {
+      renderList(out, "<p class='info'>No recent votes available.</p>");
+      return;
+    }
+
+    const parts = [];
+    data.objects.forEach((v) => {
+      const label = v.question || "Vote";
+      const when = v.created || "";
+      const billNum = v.related_bill?.display_number || "";
+      parts.push(`
+        <p class="rep-line">
+          <span class="rep-name">${billNum || v.chamber.toUpperCase()}</span>
+          <span class="small"> — ${label}</span><br/>
+          <span class="small">${when}</span>
+        </p>
+      `);
+    });
+
+    renderList(out, parts.join(""));
+  } catch (err) {
+    console.error(err);
+    renderList(out, "<p class='error'>Could not load recent votes right now.</p>");
+  }
+}
+
+// ---------------- INIT ----------------
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("billSearchBtn").addEventListener("click", handleBillSearch);
+  document.getElementById("zipSearchBtn").addEventListener("click", handleZipSearch);
+
+  document.querySelectorAll(".issue-btn").forEach((btn) => {
+    btn.addEventListener("click", () => handleIssueClick(btn.dataset.issue));
+  });
+
+  loadTrendingBills();
+  loadRecentVotes("house", "recentHouseVotes");
+  loadRecentVotes("senate", "recentSenateVotes");
+});
