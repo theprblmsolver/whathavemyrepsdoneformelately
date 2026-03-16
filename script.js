@@ -1,8 +1,14 @@
+console.log("SCRIPT LOADED SUCCESSFULLY");
+
 const GOVTRACK_BASE = "https://www.govtrack.us/api/v2";
 
 // Utility: basic fetch wrapper
 async function fetchJson(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "WhatHaveMyRepsDone/1.0"
+    }
+  });
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return res.json();
 }
@@ -46,8 +52,7 @@ async function handleBillSearch() {
   renderList(out, "<p class='info'>Searching bill and votes…</p>");
 
   try {
-    // Use GovTrack bill search by query
-    const billUrl = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(raw)}&order_by=-current_status_date&limit=1`;
+    const billUrl = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(raw)}&sort=-current_status_date&limit=1`;
     const billData = await fetchJson(billUrl);
 
     if (!billData.objects || billData.objects.length === 0) {
@@ -62,8 +67,7 @@ async function handleBillSearch() {
     const billDisplay = bill.display_number || raw;
     const status = bill.current_status_label || "Status unknown";
 
-    // Fetch votes for this bill
-    const votesUrl = `${GOVTRACK_BASE}/vote?bill=${billId}&order_by=-created&limit=1`;
+    const votesUrl = `${GOVTRACK_BASE}/vote?bill=${billId}&sort=-created&limit=1`;
     const votesData = await fetchJson(votesUrl);
 
     if (!votesData.objects || votesData.objects.length === 0) {
@@ -82,7 +86,6 @@ async function handleBillSearch() {
     const chamber = vote.chamber || "unknown chamber";
     const voteLabel = vote.question || "Vote";
 
-    // Fetch full vote detail
     const voteDetailUrl = `${GOVTRACK_BASE}/vote/${voteId}`;
     const voteDetail = await fetchJson(voteDetailUrl);
 
@@ -114,7 +117,6 @@ function buildVoteBreakdownHtml(voteDetail) {
     return "<p class='info'>No detailed vote data available.</p>";
   }
 
-  // voteDetail.votes is usually an object keyed by option (e.g., "Yea", "Nay")
   const votes = voteDetail.votes;
   const members = [];
 
@@ -135,7 +137,6 @@ function buildVoteBreakdownHtml(voteDetail) {
     return "<p class='info'>No member votes recorded.</p>";
   }
 
-  // Group by party + vote
   const groups = {
     Democrat: { Yea: [], Nay: [], NV: [] },
     Republican: { Yea: [], Nay: [], NV: [] },
@@ -169,21 +170,15 @@ function buildVoteBreakdownHtml(voteDetail) {
 
     if (data.Yea.length) {
       parts.push(`<p class="small"><strong>Yea</strong> (${data.Yea.length})</p>`);
-      data.Yea.forEach((m) => {
-        parts.push(renderMemberLine(m));
-      });
+      data.Yea.forEach((m) => parts.push(renderMemberLine(m)));
     }
     if (data.Nay.length) {
       parts.push(`<p class="small"><strong>Nay</strong> (${data.Nay.length})</p>`);
-      data.Nay.forEach((m) => {
-        parts.push(renderMemberLine(m));
-      });
+      data.Nay.forEach((m) => parts.push(renderMemberLine(m)));
     }
     if (data.NV.length) {
       parts.push(`<p class="small"><strong>Not Voting</strong> (${data.NV.length})</p>`);
-      data.NV.forEach((m) => {
-        parts.push(renderMemberLine(m));
-      });
+      data.NV.forEach((m) => parts.push(renderMemberLine(m)));
     }
 
     return parts.join("");
@@ -290,7 +285,7 @@ async function handleIssueClick(issue) {
   renderList(out, `<p class='info'>Searching bills related to “${issue}”…</p>`);
 
   try {
-    const url = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(issue)}&order_by=-current_status_date&limit=10`;
+    const url = `${GOVTRACK_BASE}/bill?q=${encodeURIComponent(issue)}&sort=-current_status_date&limit=10`;
     const data = await fetchJson(url);
 
     if (!data.objects || data.objects.length === 0) {
@@ -330,7 +325,7 @@ async function loadTrendingBills() {
   renderList(out, "<p class='info'>Loading trending bills…</p>");
 
   try {
-    const url = `${GOVTRACK_BASE}/bill?order_by=-views&limit=10`;
+    const url = `${GOVTRACK_BASE}/bill?sort=-views&limit=10`;
     const data = await fetchJson(url);
 
     if (!data.objects || data.objects.length === 0) {
@@ -366,7 +361,7 @@ async function loadRecentVotes(chamber, containerId) {
   renderList(out, "<p class='info'>Loading recent votes…</p>");
 
   try {
-    const url = `${GOVTRACK_BASE}/vote?order_by=-created&chamber=${chamber}&limit=10`;
+    const url = `${GOVTRACK_BASE}/vote?sort=-created&chamber=${chamber}&limit=10`;
     const data = await fetchJson(url);
 
     if (!data.objects || data.objects.length === 0) {
