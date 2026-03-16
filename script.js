@@ -1,8 +1,7 @@
 console.log("SCRIPT LOADED SUCCESSFULLY");
 
 // Public CORS proxy - no setup required for users
-const GOVTRACK_BASE = "https://api.allorigins.win/raw?url=https://www.govtrack.us/api/v2";
-
+const GOVTRACK_BASE = "https://corsproxy.io/?https://www.govtrack.us/api/v2";
 // -----------------------------------------------------------------------------
 // FETCH WRAPPER
 // -----------------------------------------------------------------------------
